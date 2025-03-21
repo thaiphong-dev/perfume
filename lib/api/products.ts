@@ -5,6 +5,7 @@ import {
   Product,
   ProductWithDetails,
 } from "./types";
+import { Database } from "@/lib/database.types";
 
 // Fetch all products with optional filtering and pagination
 export async function getProducts(
@@ -178,7 +179,11 @@ export async function getProductBySlug(
     const options = [];
     if (productOptions) {
       for (const productOption of productOptions) {
-        if (productOption.option_type && productOption.option_type.id) {
+        if (
+          productOption.option_type &&
+          typeof productOption.option_type === "object" &&
+          "id" in productOption.option_type
+        ) {
           const { data: optionValues } = await supabase
             .from("option_values")
             .select("*")
@@ -236,41 +241,57 @@ export async function getRelatedProducts(
       query = query.eq("category_id", categoryId);
     }
 
-    const { data, error } = await query;
+    const { data: categoryProducts, error } = await query;
 
     if (error) {
       throw error;
     }
 
-    // If not enough products from the same category, get random products
-    if (data && data.length < limit) {
-      const productIds = data.map((p) => p.id).join(",");
-
-      const { data: randomProducts, error: randomError } = await supabase
-        .from("products")
-        .select("*")
-        .eq("is_active", true)
-        .neq("id", productId)
-        .not(
-          productIds ? "id" : "id",
-          productIds ? "in" : "eq",
-          productIds || productId
-        )
-        .limit(limit - (data?.length || 0));
-
-      if (randomError) {
-        throw randomError;
-      }
-
+    // If we got enough products from the same category, return them
+    if (categoryProducts && categoryProducts.length >= limit) {
       return {
         success: true,
-        data: [...(data || []), ...(randomProducts || [])],
+        data: categoryProducts,
       };
     }
 
+    // If not enough products from the same category, get additional random products
+    const remainingCount = limit - (categoryProducts?.length || 0);
+
+    // Create a list of IDs to exclude
+    const excludeIds = [productId];
+    if (categoryProducts) {
+      categoryProducts.forEach((product: Product) => {
+        if (product) {
+          excludeIds.push(product.id);
+        }
+      });
+    }
+
+    // Format IDs for the "in" query
+    const excludeIdsStr = `(${excludeIds.join(",")})`;
+
+    // Get additional random products
+    const { data: randomProducts, error: randomError } = await supabase
+      .from("products")
+      .select("*")
+      .eq("is_active", true)
+      .not("id", "in", excludeIdsStr)
+      .limit(remainingCount);
+
+    if (randomError) {
+      throw randomError;
+    }
+
+    // Combine products from both queries
+    const combinedProducts = [
+      ...(categoryProducts || []),
+      ...(randomProducts || []),
+    ];
+
     return {
       success: true,
-      data: data || [],
+      data: combinedProducts,
     };
   } catch (error) {
     console.error("Error fetching related products:", error);

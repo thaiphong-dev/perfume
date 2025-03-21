@@ -1,110 +1,232 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Input } from "@/components/ui/input"
-import { Slider } from "@/components/ui/slider"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
+import { useCallback, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
+import { Button } from "@/components/ui/button";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Category } from "@/lib/api/types";
 
-export default function ShopSidebar() {
-  const [priceRange, setPriceRange] = useState([0, 100])
+interface ShopSidebarProps {
+  categories: Category[];
+}
 
-  const genderFilters = [
-    { id: "men", label: "Men", count: 120 },
-    { id: "women", label: "Women", count: 85 },
-    { id: "unisex", label: "Unisex", count: 45 },
-  ]
+export default function ShopSidebar({ categories }: ShopSidebarProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const brandFilters = [
-    { id: "dior", label: "Dior", count: 24 },
-    { id: "chanel", label: "Chanel", count: 18 },
-    { id: "guerlain", label: "Guerlain", count: 15 },
-    { id: "gabriela", label: "Gabriela", count: 12 },
-    { id: "armani", label: "Armani", count: 10 },
-    { id: "versace", label: "Versace", count: 8 },
-  ]
+  // Get initial values from URL
+  const initialCategory = searchParams.get("category") || undefined;
+  const initialMinPrice = searchParams.get("min_price")
+    ? parseInt(searchParams.get("min_price")!)
+    : 0;
+  const initialMaxPrice = searchParams.get("max_price")
+    ? parseInt(searchParams.get("max_price")!)
+    : 500;
+  const initialFragrance = searchParams.get("fragrance") || undefined;
 
-  const productTypeFilters = [
-    { id: "eau-de-parfum", label: "Eau de Parfum", count: 45 },
-    { id: "eau-de-toilette", label: "Eau de Toilette", count: 38 },
-    { id: "perfume", label: "Perfume", count: 25 },
-    { id: "body-spray", label: "Body Spray", count: 18 },
-    { id: "after-shave", label: "After Shave", count: 12 },
-  ]
+  // Set up state
+  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(
+    initialCategory
+  );
+  const [priceRange, setPriceRange] = useState<number[]>([
+    initialMinPrice,
+    initialMaxPrice,
+  ]);
+  const [selectedFragrances, setSelectedFragrances] = useState<string[]>(
+    initialFragrance ? initialFragrance.split(",") : []
+  );
 
-  const characterFilters = [
-    { id: "woody", label: "Woody", count: 28 },
-    { id: "floral", label: "Floral", count: 24 },
-    { id: "fresh", label: "Fresh", count: 20 },
-    { id: "oriental", label: "Oriental", count: 18 },
-    { id: "citrus", label: "Citrus", count: 15 },
-  ]
-
+  // Prepare lists of filter options
   const fragranceFilters = [
-    { id: "vanilla", label: "Vanilla", count: 22 },
-    { id: "musk", label: "Musk", count: 18 },
-    { id: "rose", label: "Rose", count: 16 },
-    { id: "sandalwood", label: "Sandalwood", count: 14 },
-    { id: "jasmine", label: "Jasmine", count: 12 },
-  ]
-
-  const complementsFilters = [
-    { id: "gift-sets", label: "Gift Sets", count: 25 },
-    { id: "travel-size", label: "Travel Size", count: 18 },
-    { id: "body-lotion", label: "Body Lotion", count: 15 },
-    { id: "shower-gel", label: "Shower Gel", count: 12 },
-    { id: "deodorant", label: "Deodorant", count: 10 },
-  ]
+    { id: "vanilla", label: "Vanilla" },
+    { id: "musk", label: "Musk" },
+    { id: "rose", label: "Rose" },
+    { id: "sandalwood", label: "Sandalwood" },
+    { id: "jasmine", label: "Jasmine" },
+    { id: "lavender", label: "Lavender" },
+    { id: "citrus", label: "Citrus" },
+    { id: "woody", label: "Woody" },
+    { id: "floral", label: "Floral" },
+    { id: "fresh", label: "Fresh" },
+    { id: "oriental", label: "Oriental" },
+  ];
 
   const priceFilters = [
     { id: "under-50", label: "Under $50", value: [0, 50] },
     { id: "50-100", label: "$50 - $100", value: [50, 100] },
     { id: "100-200", label: "$100 - $200", value: [100, 200] },
     { id: "over-200", label: "Over $200", value: [200, 500] },
-  ]
+  ];
 
-  const renderFilterGroup = (title: string, filters: any[], expanded = false) => (
+  // Handle category selection
+  const handleCategoryChange = (categoryId: string) => {
+    if (selectedCategory === categoryId) {
+      setSelectedCategory(undefined);
+    } else {
+      setSelectedCategory(categoryId);
+    }
+  };
+
+  // Handle fragrance selection
+  const handleFragranceChange = (fragranceId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedFragrances((prev) => [...prev, fragranceId]);
+    } else {
+      setSelectedFragrances((prev) => prev.filter((id) => id !== fragranceId));
+    }
+  };
+
+  // Handle price filter from presets
+  const handlePricePresetChange = (range: number[]) => {
+    setPriceRange(range);
+  };
+
+  // Apply filters
+  const applyFilters = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+
+    // Handle category
+    if (selectedCategory) {
+      params.set("category", selectedCategory);
+    } else {
+      params.delete("category");
+    }
+
+    // Handle price range
+    if (priceRange[0] > 0) {
+      params.set("min_price", priceRange[0].toString());
+    } else {
+      params.delete("min_price");
+    }
+
+    if (priceRange[1] < 500) {
+      params.set("max_price", priceRange[1].toString());
+    } else {
+      params.delete("max_price");
+    }
+
+    // Handle fragrances
+    if (selectedFragrances.length > 0) {
+      params.set("fragrance", selectedFragrances.join(","));
+    } else {
+      params.delete("fragrance");
+    }
+
+    // Keep existing sort parameter if present
+    const sortBy = searchParams.get("sort");
+    if (sortBy) {
+      params.set("sort", sortBy);
+    }
+
+    // Navigate to the new URL
+    router.push(`/shop?${params.toString()}`);
+  }, [router, searchParams, selectedCategory, priceRange, selectedFragrances]);
+
+  // Render category filter group
+  const renderCategoryFilter = () => (
     <Accordion
       type="single"
       collapsible
-      defaultValue={expanded ? title : undefined}
+      defaultValue="CATEGORIES"
       className="border-b border-gray-200"
     >
-      <AccordionItem value={title} className="border-0">
+      <AccordionItem value="CATEGORIES" className="border-0">
         <AccordionTrigger className="py-3 text-sm font-bold uppercase text-[#4A3034] hover:no-underline">
-          {title}
+          CATEGORIES
         </AccordionTrigger>
         <AccordionContent>
           <div className="space-y-2 pb-4">
-            {filters.map((filter) => (
-              <div key={filter.id} className="flex items-center justify-between">
+            {categories.map((category) => (
+              <div
+                key={category.id}
+                className="flex items-center justify-between"
+              >
                 <div className="flex items-center">
-                  <Checkbox id={filter.id} className="mr-2 h-4 w-4 rounded-sm border-gray-300" />
-                  <label htmlFor={filter.id} className="text-xs text-[#6D5D60] cursor-pointer">
-                    {filter.label}
+                  <Checkbox
+                    id={`category-${category.id}`}
+                    className="mr-2 h-4 w-4 rounded-sm border-gray-300"
+                    checked={selectedCategory === category.id}
+                    onCheckedChange={() => handleCategoryChange(category.id)}
+                  />
+                  <label
+                    htmlFor={`category-${category.id}`}
+                    className="text-xs text-[#6D5D60] cursor-pointer"
+                  >
+                    {category.name}
                   </label>
                 </div>
-                <span className="text-xs text-gray-400">({filter.count})</span>
               </div>
             ))}
           </div>
         </AccordionContent>
       </AccordionItem>
     </Accordion>
-  )
+  );
+
+  // Render fragrance filter group
+  const renderFragranceFilter = () => (
+    <Accordion
+      type="single"
+      collapsible
+      defaultValue="FRAGRANCE"
+      className="border-b border-gray-200"
+    >
+      <AccordionItem value="FRAGRANCE" className="border-0">
+        <AccordionTrigger className="py-3 text-sm font-bold uppercase text-[#4A3034] hover:no-underline">
+          FRAGRANCE
+        </AccordionTrigger>
+        <AccordionContent>
+          <div className="space-y-2 pb-4">
+            {fragranceFilters.map((filter) => (
+              <div
+                key={filter.id}
+                className="flex items-center justify-between"
+              >
+                <div className="flex items-center">
+                  <Checkbox
+                    id={filter.id}
+                    className="mr-2 h-4 w-4 rounded-sm border-gray-300"
+                    checked={selectedFragrances.includes(filter.id)}
+                    onCheckedChange={(checked) =>
+                      handleFragranceChange(filter.id, checked === true)
+                    }
+                  />
+                  <label
+                    htmlFor={filter.id}
+                    className="text-xs text-[#6D5D60] cursor-pointer"
+                  >
+                    {filter.label}
+                  </label>
+                </div>
+              </div>
+            ))}
+          </div>
+        </AccordionContent>
+      </AccordionItem>
+    </Accordion>
+  );
 
   return (
     <div className="bg-white rounded-lg p-4 shadow-sm">
       <h2 className="mb-4 text-lg font-bold text-[#4A3034]">SHOP BY</h2>
 
-      {renderFilterGroup("SHOP BY GENDER", genderFilters, true)}
-      {renderFilterGroup("SHOP BY BRAND", brandFilters)}
-      {renderFilterGroup("PRODUCT TYPE", productTypeFilters)}
-      {renderFilterGroup("CHARACTER", characterFilters)}
-      {renderFilterGroup("FRAGRANCE", fragranceFilters)}
-      {renderFilterGroup("COMPLEMENTS", complementsFilters)}
+      {renderCategoryFilter()}
+      {renderFragranceFilter()}
 
-      <Accordion type="single" collapsible className="border-b border-gray-200">
+      <Accordion
+        type="single"
+        collapsible
+        defaultValue="price"
+        className="border-b border-gray-200"
+      >
         <AccordionItem value="price" className="border-0">
           <AccordionTrigger className="py-3 text-sm font-bold uppercase text-[#4A3034] hover:no-underline">
             PRICE
@@ -112,10 +234,26 @@ export default function ShopSidebar() {
           <AccordionContent>
             <div className="space-y-4 pb-4">
               {priceFilters.map((filter) => (
-                <div key={filter.id} className="flex items-center justify-between">
+                <div
+                  key={filter.id}
+                  className="flex items-center justify-between"
+                >
                   <div className="flex items-center">
-                    <Checkbox id={filter.id} className="mr-2 h-4 w-4 rounded-sm border-gray-300" />
-                    <label htmlFor={filter.id} className="text-xs text-[#6D5D60] cursor-pointer">
+                    <Checkbox
+                      id={filter.id}
+                      className="mr-2 h-4 w-4 rounded-sm border-gray-300"
+                      checked={
+                        priceRange[0] === filter.value[0] &&
+                        priceRange[1] === filter.value[1]
+                      }
+                      onCheckedChange={() =>
+                        handlePricePresetChange(filter.value)
+                      }
+                    />
+                    <label
+                      htmlFor={filter.id}
+                      className="text-xs text-[#6D5D60] cursor-pointer"
+                    >
                       {filter.label}
                     </label>
                   </div>
@@ -124,7 +262,6 @@ export default function ShopSidebar() {
 
               <div className="mt-4 px-2">
                 <Slider
-                  defaultValue={[0, 100]}
                   max={500}
                   step={10}
                   value={priceRange}
@@ -137,7 +274,12 @@ export default function ShopSidebar() {
                     <Input
                       type="number"
                       value={priceRange[0]}
-                      onChange={(e) => setPriceRange([Number.parseInt(e.target.value), priceRange[1]])}
+                      onChange={(e) =>
+                        setPriceRange([
+                          parseInt(e.target.value) || 0,
+                          priceRange[1],
+                        ])
+                      }
                       className="h-8 w-16 text-xs"
                     />
                   </div>
@@ -147,7 +289,12 @@ export default function ShopSidebar() {
                     <Input
                       type="number"
                       value={priceRange[1]}
-                      onChange={(e) => setPriceRange([priceRange[0], Number.parseInt(e.target.value)])}
+                      onChange={(e) =>
+                        setPriceRange([
+                          priceRange[0],
+                          parseInt(e.target.value) || 0,
+                        ])
+                      }
                       className="h-8 w-16 text-xs"
                     />
                   </div>
@@ -157,7 +304,15 @@ export default function ShopSidebar() {
           </AccordionContent>
         </AccordionItem>
       </Accordion>
-    </div>
-  )
-}
 
+      <div className="mt-4">
+        <Button
+          className="w-full bg-[#4A3034] hover:bg-[#3A2024] text-white"
+          onClick={applyFilters}
+        >
+          Apply Filters
+        </Button>
+      </div>
+    </div>
+  );
+}

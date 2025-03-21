@@ -16,8 +16,17 @@ export type Product = Database["public"]["Tables"]["products"]["Row"];
 export type ProductInsert = Database["public"]["Tables"]["products"]["Insert"];
 export type ProductUpdate = Database["public"]["Tables"]["products"]["Update"];
 
-export type ProductImage =
-  Database["public"]["Tables"]["product_images"]["Row"];
+export interface ProductImage {
+  id: string;
+  product_id: string;
+  url: string;
+  alt_text?: string | null;
+  is_primary: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export type ProductImageInsert =
   Database["public"]["Tables"]["product_images"]["Insert"];
 export type ProductImageUpdate =
@@ -91,25 +100,20 @@ export type WishlistUpdate =
 
 // Extended types with related data
 export interface ProductWithDetails extends Product {
-  category?: Category | null;
+  category?: Category;
   images?: ProductImage[];
   variants?: ProductVariant[];
-  options?: Array<{
-    option_type: OptionType;
-    option_values: OptionValue[];
-  }>;
+  options?: ProductOption[];
+  stock_quantity?: number;
 }
 
-export interface OrderWithDetails extends Order {
-  items?: Array<
-    OrderItem & {
-      product?: Product;
-      variant?: ProductVariant;
-    }
-  >;
-  shipping_method?: ShippingMethod;
-  payment_method?: PaymentMethod;
+export interface OrderWithDetails
+  extends Omit<Order, "payment_method" | "shipping_method"> {
   user?: User;
+  items?: OrderItem[];
+  payment_method?: PaymentMethod;
+  shipping_method?: ShippingMethod;
+  coupon?: Coupon;
 }
 
 export interface UserWithDetails extends User {
@@ -158,6 +162,7 @@ export interface Cart {
   items: CartItem[];
   subtotal: number;
   shipping_fee?: number;
+  shipping_method_id?: string;
   tax?: number;
   discount?: number;
   coupon_code?: string | null;
